@@ -207,6 +207,6 @@ Repository interface {
 
 > 总体思路：该方法把templates与adapters联系起来了，并且校验每个adapter是否实现了自己指定的SupportedTemplates列表，校验方法：adapter的Builder是否实现了template定义的HandlerBuilder, 如果没有存在没有实现的adapter，则直接panic。
 
-具体见：[templates与adapters的关系校验](https://github.com/1046102779/istio-learning)
+具体见：[templates与adapters的关系校验](adapters-and-templates.md)
 
 ## 分析mixer grpc服务调用流程
