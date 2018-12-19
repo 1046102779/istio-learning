@@ -1,3 +1,9 @@
+# mixer server框架
+
+![mixer数据处理总体流程](https://gewuwei.oss-cn-shanghai.aliyuncs.com/tracelearning/mixer%E6%95%B0%E6%8D%AE%E5%A4%84%E7%90%86%E6%80%BB%E4%BD%93%E6%B5%81%E7%A8%8B.png)
+
+![envoy proxy调用mixer server调用逻辑](https://www.baidu.com)
+
 # mixer server启动流程
 
 ## 本地启动并简单测试
@@ -121,7 +127,7 @@ type Handler interface{
 
 另一个方面patchTable参数, 用于故障注入的可替换功能集。当我们要对集群中的某些服务进行异常注入测试，看看业务的反馈状态做出业务调整。可替换的函数如下表所示：
 
-| 函数名 | 函数原型 | 函数含义 |
+| 函数名 | 函数原型 | 函数含义及默认值 |
 | ---| --- | --- |
 | newRuntime | `func(store.Store, map[string]*template.Info, map[string]*adpater.Info, string, *pool.GoroutinePool..., bool) *runtime.Runtime`| Runtime是Mixer server运行时的主入口。 它监听配置，实例化handler instance，创建dispatch分发状态机并处理grpc client的请求。 |
 | configTracing | `func(serviceName string, options *tracing.Options) (io.Closer, error)` | 配置并初始化全局的GlobalTracer，目前内置支持Jaeger与Zipkin，因为Jaeger本身就支持Zipkin |
@@ -139,6 +145,68 @@ type Handler interface{
 
 启动mixer server，执行runServer函数。这个流程又分为N步骤：
 
-第一步：
+第一步：初始化patchTable，并创建mixer Server实例;
+第二步：启动mixer server服务，监听grpc服务端口；
+第三步：主线程goroutine等待mixer server服务终止信号，并关闭grpc服务.
+
+对于第二步，主要是监听来自envoy proxy的grpc client请求，注册的服务有Check与Report。其中Qutoa包含在Check中
+
+对于第三步，mixer server主要用于grpc server对envoy proxy提供Check、Qutoa和Report服务，当mixer server终止时，则主进程也需要做退出后的处理，并Close掉。包括以下步骤
+
+1. grpc server的优雅关闭。Graceful Stop。
+2. controlz服务退出，也就是mixer server自身状态UI监控，非性能监控；
+3. checkCache服务退出，是mixer server的第二级缓存；
+4. grpc server服务关闭退出；
+5. tracer client关闭退出
+6. monitor server服务退出，这个是profiling mixer server自身性能采样；
+7. 两个goroutine池关闭，包括接收grpc client请求的并发goroutine池和后端adapter处理的并发goroutine池；
+8. probe探活关闭
+9. log sync内存中的日志buff落入磁盘；
+
+#### mixer server实例初始化
+
+这里重点讲解第一步mixer server实例的整个创建过程，比较复杂。
+
+patchTable故障注入可替换的默认值，已经在上面的表格中说明了。
+
+先初始化Server实例，根据上面说的Server各个参数定义以及含义，设置grpc server并发处理的goroutine数量，以及后端adapter
+并发处理的goroutine数量。这里比较有意思的一点，自己对此有点看法(APIWorkerPool, AdapterWorkerPool)：
+
+```shell
+# 对于goroutine池，并发处理grpc client请求。采用了channel与goroutine pool池，其实官方处理得过于简单了。
+# 所有的goroutine作为worker，从channel队列上抢占每个发送过来的grpc client请求，并进行任务处理。
+# 官方给出的思路：当channel队列打满时，保证每个队列中的每个任务，都能被一个goroutine服务。也就是说channel队列长度与pool中的goroutine数量是相同的
+# 但是我认为这个是不太合适的。因为channel队列的长度不打满的话，则多个goroutine一定会出现idle状态，应该是要给出算法动态调整goroutine数量的，或者给出两个参数：
+# 1. channel队列的长度；2. goroutine并发数量
+```
+
+对于mixer server内置的12个templates和20个adapter, 先是对这两个进行一些处理， 代码如下所示：
+
+
+```shell
+## 对内置的templates和adapters，进行一些提取和关联, 这个部分涉及的概念比较多，我们逐一改写
+tmplRepo := template.NewRepository(a.Templates) 
+adapterMap := config.AdapterInfoMap(a.Adapters, tmplRepo.SupportsTemplate)
+```
+
+虽然短短的两行代码，但是涉及的概念和内容非常多，我们下面详细介绍下：
+
+首先对于NewRepository方法，创建一个Repository interface实例，这个接口实现了两个方法
+
+```shell
+// Repository defines all the helper functions to access the generated template specific types and fields.
+Repository interface {
+    GetTemplateInfo(template string) (Info, bool)
+    SupportsTemplate(hndlrBuilder adapter.HandlerBuilder, tmpl string) (bool, string)
+}
+```
+
+对于GetTemplateInfo方法，也就是对mixer server内置的12个templates，即map[string]template.Info的SupportedTmplInfo。通过模板名，获取template.Info，也就是模板相关信息。
+
+在介绍第二个方法SupportsTemplate之前，我们先挖掘几个template和adapter小概念。这里有个[issue1](https://github.com/1046102779/istio-learning/issues/1), 可以看看了解下。
+
+> 总体思路：该方法把templates与adapters联系起来了，并且校验每个adapter是否实现了自己指定的SupportedTemplates列表，校验方法：adapter的Builder是否实现了template定义的HandlerBuilder, 如果没有存在没有实现的adapter，则直接panic。
+
+具体见：[templates与adapters的关系校验](https://github.com/1046102779/istio-learning)
 
 ## 分析mixer grpc服务调用流程
