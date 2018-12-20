@@ -39,7 +39,7 @@ Report RPC returned OK
 当使用mixs server命令时，启动流j程大体如下：
 
 1. 获取mixer内置的templates与adapters；
-2. 对mixer server相关参数进行默认设置和命令行传入更新；如：grpc提供服务的默认端口或者地址为9091，可支持命令行修改；mixer自身健康状态的监控端口为9093，可支持命令行修改; grpc一次可传输的最大数据量，并发量; mixer server同时最多处理的goroutines数量；adapter能够同时处理的goroutines数量等等参数。主要是用于接收grpc client的请求相关参数、以及处理这些请求的goroutines池、和后端handler的goroutines池。还有一个很重要的参数，就是指定存储adapter配置文件的位置，可以是k8s路径、fs路径等，启动mixer server时会自动加载这些配置到内存中，并通过VirtualService、Template和DestinationRule进行固定属性和数据的匹配、处理并存储；`这些参数作为启动参数传入mixer server中`
+2. 对mixer server相关参数进行默认设置和命令行传入更新；如：grpc提供服务的默认端口或者地址为9091，可支持命令行修改；mixer自身健康状态的监控端口为9093，可支持命令行修改; grpc一次可传输的最大数据量，并发量; mixer server同时最多处理的goroutines数量；adapter能够同时处理的goroutines数量等等参数。主要是用于接收grpc client的请求相关参数、以及处理这些请求的goroutines池、和后端handler的goroutines池。还有一个很重要的参数，就是指定存储adapter配置文件的位置，可以是k8s路径、fs路径等，启动mixer server时会自动加载这些配置到内存中，并通过Handler、Template和DestinationRule进行固定属性和数据的匹配、处理并存储；`这些参数作为启动参数传入mixer server中`
 3. 然后执行runServer方法，开始初始化grpc server服务、mixer server自身健康状态的监控。 并分别启动两个goroutine，主线程用grpc server的Wait进行阻塞。第二goroutine这是我们通常说的"net/http/pprof"性能监控
 
 对于流程中的第3步骤，过程比较复杂。
@@ -134,7 +134,7 @@ type Handler interface{
 | startMonitor | `func(port uint16, enableProfiling bool, lf listenFunc) (*monitor, error)` | 启动mixer server profiling性能监控，使用的net/http/profiling包 |
 | listen | `listenFunc` | 默认使用net.Listen监听grpc server |
 | configLog | `func(options *log.Options) error` | 同configTracing，配置全局的log文件写入对象 |
-| runtimeListen| `func(runtime *runtime.Runtime) error` | 默认使用runtime.StartMonitor方法进行配置监控，当配置变化时，重新配置runtime运行时的环境。配置包括：VirtualService、Template和DestinationRule |
+| runtimeListen| `func(runtime *runtime.Runtime) error` | 默认使用runtime.StartMonitor方法进行配置监控，当配置变化时，重新配置runtime运行时的环境。配置包括：Handler、Template和DestinationRule |
 | remove | `func(name string) error ` | 默认os.Remove方法，移除fs的指定文件 |
 | newOpenCensusExporter | `func() (view.Exporter, error)` | Prometheus metrics导出到OpenCensus|
 | registerOpenCensusViews | `func(...*view.View) error` | 注册OpenCensus， 我觉得使用Jaeger就够了，为什么要这么多监控系统呢？Jaeger、Zipkin和OpenCensus|
@@ -208,5 +208,30 @@ Repository interface {
 > 总体思路：该方法把templates与adapters联系起来了，并且校验每个adapter是否实现了自己指定的SupportedTemplates列表，校验方法：adapter的Builder是否实现了template定义的HandlerBuilder, 如果没有存在没有实现的adapter，则直接panic。
 
 具体见：[templates与adapters的关系校验](adapters-and-templates.md)
+
+清楚adapters与templates的关系后，接下来就出现了下面一行代码：
+
+> s.Probe = probe.NewProbe()
+
+上面一行代码初始化探针probe，用于探活和就绪。在继续往下初始化mixer server实例之前，我们先了解一个命令
+
+> mixs probe --probe-path="xxxx" --interval="10s"
+
+这个命令的含义是：在10s内，如果这个probe-path指定的文件最后修改时间t1, 当前时间为t2, 如果t2-t1大于10s，则表示探活失败；否则探活成功。
+
+也就是说，如果在规定时间内，文件没有发生过修改，则表示不健康。
+
+在mixer server启动参数中，也需要指明Readiness probe和Liveness probe两个探针的配置，包括文件绝对路径和探测间隔时间。需要说明的一点是，这个探测间隔时间，官方写的是输入interval时间的一半，他们认为进行检测也需要消耗大量时间。
+
+这两个探针的意义也在上面已有说明，来自于k8s的概念
+
+
+接下来，就是grpc server相关参数设置。包括grpc server最大并发流量限制、接收的最大请求包限制、是否开启trace、以及grpc server启动需要的IP和端口
+
+参数设置完后，创建一个监听。默认使用的是net.Listen, 监听存储在Server下的listener参数值中。
+
+然后再通过启动参数ConfigStoreUrl，设置要开启的后端适配器列表，以及对应Template和DestinationRule配置文件，这个url可以是k8s的访问路径，[MCP网格配置协议](https://blog.fleeto.us/post/battle-testing-istio-1.0/）, 也可以是fs的本地路径，也可以是其他路径。
+
+[mixer server后端配置存储服务](backend-store.md)
 
 ## 分析mixer grpc服务调用流程
