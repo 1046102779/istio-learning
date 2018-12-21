@@ -230,8 +230,24 @@ Repository interface {
 
 参数设置完后，创建一个监听。默认使用的是net.Listen, 监听存储在Server下的listener参数值中。
 
-然后再通过启动参数ConfigStoreUrl，设置要开启的后端适配器列表，以及对应Template和DestinationRule配置文件，这个url可以是k8s的访问路径，[MCP网格配置协议](https://blog.fleeto.us/post/battle-testing-istio-1.0/）, 也可以是fs的本地路径，也可以是其他路径。
+然后再通过启动参数ConfigStoreUrl，设置要开启的后端适配器列表，以及对应Template和DestinationRule配置文件，这个url可以是k8s的访问路径，[MCP网格配置协议](https://blog.fleeto.us/post/battle-testing-istio-1.0/), 也可以是fs的本地路径，也可以是其他路径。
 
 [mixer server后端配置存储服务](backend-store.md)
+
+接下来，我们就要讨论比较关键的一步了，mixer server runtime模块，这个是监听后端存储配置的变化，以及接收envoy proxy的grpc client请求并分发给后端适配器处理。这个过程非常复杂，我们先来看Runtime的初始化，在mixer server实例初始化有关这个runtime的初始化，由下面几行代码构成：
+
+```shell
+log.Info("Starting runtime config watch...")
+rt = p.newRuntime(st, templateMap, adapterMap, a.ConfigDefaultNamespace,
+    s.gp, s.adapterGP, a.TracingOptions.TracingEnabled())
+
+if err = p.runtimeListen(rt); err != nil {
+    return nil, fmt.Errorf("unable to listen: %v", err)
+}
+
+s.dispatcher = rt.Dispatcher()
+```
+
+在看上面的代码之前，你可以阅读[runtime初始化运行时](runtime.md)
 
 ## 分析mixer grpc服务调用流程
