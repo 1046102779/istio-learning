@@ -6,6 +6,7 @@
 2. [校验内置的adapters与templates的HandlBuilder接口关系](mixer/adapters-and-templates.md)
 3. [后端存储配置的client初始化](mixer/backend-store.md)
 4. [runtime环境的初始化，非常重要](mixer/runtime.md)
+5. [mixc调用mixs的处理流程](mixer/envoy-proxy-call-grpcclient.md)
 
 ## pilot
 
