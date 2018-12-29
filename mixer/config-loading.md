@@ -61,6 +61,10 @@ rule优先做mixer server内置的HandlerStatic匹配，如果匹配不到，再
 ## 小结
 **动态映射动态资源对象，静态映射静态资源对象。**
 
+**动态资源对象是对远端适配器服务而言的，静态资源对象是对本地适配器服务而言的, 本地适配器服务有20个服务, 本地所以不需要提供端口服务**
+
+而对于k8s, mch的远端服务，则是动态资源对象, 需要在yaml配置文件kind为handler，spec部分connection不能为空，在初始化handler Table时，也就是Table中的entry初始化时，对于动态资源对象会直接创建grpc client连接
+
 总结，现在来理解下配置中的template、adapter、handler、instance、attributemanifest和rule六个概念。
 
 配置中的template与adapter是作为新增的资源对象，在mixer server中已经静态地枚举了默认支持的12个template与20个adapter，同时也支持第三方通过配置的方式新增；
