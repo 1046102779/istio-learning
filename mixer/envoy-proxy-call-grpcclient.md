@@ -33,6 +33,35 @@ default words: [
 global word count: 0
 ```
 
+我们对上面的attributes列表数据说明下含义:
+
+通过attributes列表可以看到，istio支持envoy proxy本地缓存并批量构成一个grpc client请求。降低网络传输量,降低负载
+
+对于attributes列表的每个元素, 第一个为发送过来的所有字段与数据构成的列表，其他的变量是对第一个列表的解析key-value；key为第一个列表字段索引的取反，再减1
+
+Words []string 		                [
+			destination.labels app ratings source.name myservice destination.port 8080 request.time response.size request.headers clnt abc source abcd destination.service abc.ns.svc.cluster.local source.labels version v2 response.duration source.ip
+		] 
+Strings map[int32]int32		        map[-4:-5 -6:-7 -15:-16] 
+Int64S map[int32]int64		        map[-9:1024 -20:2003] 
+Doubles map[int32]float64		    map[] 
+Bools map[int32]bool		        map[] 
+Timestamps map[int32]time.Time		map[-8:2017-07-04 00:01:10 +0000 UTC] 
+Durations map[int32]time.Duration   map[]
+Bytes map[int32][]byte		        map[-21:[192 0 0 2]] 
+StringMaps map[int32]StringMap		map[-1:{map[-2:-3]} -10:{map[-11:-12 -13:-14]} -17:{map[-18:-19]}]
+
+例如：destination.labels的索引key等于-1, app的索引key等于-2, ratings的索引key等于-3
+
+1. 对于Strings类型的map，实际值：{source.name: "myservice", destination.port:"8080", destination.service:"abc.ns.svc.cluster.local"}
+2. 对于Int64S类型的map，实际值：{response.size: 1024, response.duration: 2003}
+3. 对于Doubles类型的map，实际值：{}
+4. 对于Bools类型的map，实际值：{}
+5. 对于Timestamps类型的map，实际值：{request.time: "2017-07-04 00:01:10 +0000 UTC"}
+6. 对于Durations类型的map，实际值：{}
+7. 对于Bytes类型的map，实际值：{source.ip: 192.0.0.2}
+8. 对于StringMaps类型的map，实际值：{destination.labels: {app: ratings}, response.size: {request.headers: clnt, abc:source}, source.labels: {version:v2}}
+
 下面我们先以grpc server中的Report服务为例，介绍envoy proxy发送grpc client请求，被grpc server处理的整体流程。
 
 ## Report处理grpc client请求流程
