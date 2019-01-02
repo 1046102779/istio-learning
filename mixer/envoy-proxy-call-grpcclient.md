@@ -271,3 +271,30 @@ DispatchReport: func(ctx context.Context, handler adapter.Handler, inst []interf
 ## 总结
 
 经过这个例子，我们可以明白从envoy proxy发起grpc client调用，到后端适配器真正处理的完整流程了。
+
+
+## 再阅读源码理解
+
+本小节主要讲解mixer server接收envoy proxy的grpc client请求的完整处理过程。
+
+mixer server处理client发送过来的请求包括两个：Check和Report，也即mixc的两个命令。
+
+这部分先讲解Report请求，因为Check请求包括了mixer server的缓存设计，这个可以阅读[敖小剑的技术博客](https://skyao.io/post/201804-istio-mixer-cache-concepts/)连续4篇，写得比较详细。
+
+Report请求处理流程： 
+
+在mixer server接收到grpc client请求后，就开始进行请求数据的封装，并获取dispatcher存储的reporter对象。
+
+mixc可以进行本地缓存批量一次性请求grpc server服务，所以会存在请求Attributes列表, 遍历列表做以下步骤处理：
+
+因为在dispatch分发时，会根据不同的variety服务类型，会做不同的调用流程，主要是动态生成标签的variety，会直接处理。因为不涉及到远端服务。而report可能会涉及到远端服务调用，所以尽量批量调度处理。
+
+1. 数据包经过Preprocess处理。封装一个variety为TEMPLATE_VARIETY_ATTRIBUTE_GENERATOR的临时session数据包，获取请求数据属性`context.reporter.kind`和根据前面这个属性值，获取`destination.namespace`或者`source.namespace`的属性值。从而找到NamespaceTable的路由;
+2. 遍历NamespaceTable中的destinations列表，校验每个rule是否匹配请求数据中的属性值。如果匹配, 则构建template的instance数据实例，生成待调度的dispatchState任务放入到队列中。在任务被goroutine调度并执行时，会通过variety进行服务分类处理，落到template的DispatchGenAttrs， DispatchCheck，DispatchReport或者DispatchQuota, 因为adapter实现了该template的相关服务API，所以最后调用到了静态的本地服务或者动态的远端服务。
+
+
+对于variety为TEMPLATE_VARIETY_REPORT的服务类型，首先把所有适配到的destinations构建成一个类似map[destination][]instance的任务，并不是每处理一个destination,就进行任务调度，而是一次性把grpc server接收到的请求数据，进行缓存并最后通过reporter.Flush方法进行一次性的任务调度。
+
+mixer server在后期版本中把mixc Quota命令放在了mixc Check子命令中。
+
+Reporter的处理逻辑还是比较好理解的
