@@ -1,0 +1,59 @@
+---
+title: person
+layout: protoc-gen-docs
+generator: protoc-gen-docs
+number_of_entries: 1
+---
+<p>Example config:</p>
+
+<pre><code class="language-shell">apiVersion: &quot;config.istio.io/v1alpha2&quot;
+kind: person
+metadata:
+  name: person 
+  namespace: istio-system
+spec:
+  owner: destination.owner | &quot;guest&quot; 
+  age: destination.port | &quot;24&quot;
+  container_name: destination.container.name | &quot;clever&quot;
+</code></pre>
+
+<h2 id="Template">Template</h2>
+<section>
+<p>The <code>person</code> template represents person info key, used to authorize API calls.</p>
+
+<table class="message-fields">
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr id="Template-owner">
+<td><code>owner</code></td>
+<td><code>string</code></td>
+<td>
+<p>The owner being called (destination.owner).</p>
+
+</td>
+</tr>
+<tr id="Template-age">
+<td><code>age</code></td>
+<td><code>int64</code></td>
+<td>
+<p>The age being called (destination.port).</p>
+
+</td>
+</tr>
+<tr id="Template-email_address">
+<td><code>emailAddress</code></td>
+<td><code>string</code></td>
+<td>
+<p>The email<em>address being called (destination.labels[&ldquo;email</em>address&rdquo;]).</p>
+
+</td>
+</tr>
+</tbody>
+</table>
+</section>

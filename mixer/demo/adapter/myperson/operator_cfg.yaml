@@ -1,0 +1,42 @@
+# handler for adapter mygrpcadapter
+apiVersion: "config.istio.io/v1alpha2"
+kind: handler
+metadata:
+ name: h1
+ namespace: istio-system
+spec:
+ adapter: myperson
+ connection:
+     address: ":4001" #replaces at runtime by the test
+ params:
+   owner: "donghai"
+   age: 31
+   container_name: "cdh_cjx@163.com"
+---
+
+# instance for template metric
+apiVersion: "config.istio.io/v1alpha2"
+kind: instance
+metadata:
+ name: i1
+ namespace: istio-system
+spec:
+ template: person
+ params:
+   owner: destination.owner | "donghai"
+   age: destination.port | 30
+   container_name: destination.container.name | "cdh_cjx@163.com"
+---
+
+# rule to dispatch to handler h1
+apiVersion: "config.istio.io/v1alpha2"
+kind: rule
+metadata:
+ name: r1
+ namespace: istio-system
+spec:
+ actions:
+ - handler: h1.istio-system
+   instances:
+   - i1
+---

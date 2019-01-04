@@ -1,0 +1,18 @@
+syntax="proto3";
+
+// config for myperson
+package adapter.myperson.config;
+
+import "gogoproto/gogo.proto";
+
+option go_package="config";
+
+// config for myperson
+message Params {
+    // Path of the file to save the information about runtime requests.
+    string owner = 1;
+    // age for person
+    int64 age = 2;
+    // email_address for person
+    string email_address = 3;
+}
