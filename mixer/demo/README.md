@@ -391,10 +391,10 @@ rules:
   - create
 ```
 
-# 把kubernetes用户绑定到kube-apiserver角色上，即可
 [k8s@kube-node2 ~]$ cat config/clusterrolebindings.yaml
 
 ```shell
+# 把kubernetes用户绑定到kube-apiserver角色上，即可
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
