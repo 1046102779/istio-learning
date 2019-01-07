@@ -359,3 +359,53 @@ Check RPC completed successfully. Check status was OK
 1. [教程|构建生产就绪的Istio Adapter](http://www.servicemesher.com/blog/set-sail-a-production-ready-istio-adapter/)
 2. [Mixer Out Of Process Adapter Dev Guide](https://github.com/istio/istio/wiki/Mixer-Out-Of-Process-Adapter-Dev-Guide)
 3. [Mixer Out of Process Adapter Walkthrough](https://github.com/istio/istio/wiki/Mixer-Out-Of-Process-Adapter-Walkthrough)
+4. [k8s权限认证rbac基础问题分析和解决思路记录](http://blog.51cto.com/goome/2170196)
+
+## 花絮
+
+我们在使用[教程|构建生产就绪的Istio Adapter](http://www.servicemesher.com/blog/set-sail-a-production-ready-istio-adapter/)在k8s上部署adapter时，可能会遇到一个问题：
+
+```shell
+Error from server (Forbidden): Forbidden (user=kubernetes, verb=get, resource=nodes, subresource=proxy) ( pods/log myperson-bf7ffdd7c-tvqvh)
+```
+
+这个主要是user=kubernetes的subjects没有RBAC权限，需要添加创建角色和绑定角色操作。步骤如下：
+
+[k8s@kube-node2 ~]$ cat config/roles.yaml
+
+```shell
+# 创建kube-apiserver角色, 并可以通过[get, create]动作，访问nodes/proxy和nodes/metrics两类资源
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-apiserver
+  namespace: kube-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes/proxy
+  - nodes/metrics
+  verbs:
+  - get
+  - create
+```
+
+# 把kubernetes用户绑定到kube-apiserver角色上，即可
+[k8s@kube-node2 ~]$ cat config/clusterrolebindings.yaml
+
+```shell
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-apiserver
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-apiserver
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: kubernetes
+```
