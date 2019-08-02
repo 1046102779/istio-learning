@@ -48,7 +48,7 @@ Report RPC returned OK
 
 #### 第一步
 
-对于第1步，文件`$GOPATH/src/istio.io/istio/mixer/template/inventory.yaml`表示内置了12个adapter，分别是`apikey`, `authorization`, `checknothing`, `edge`, `listentry`, `logentry`, `metric`, `quota`, `reportnothing`, `tracespan`, `servicecontrolreport`, `kubernetesenv/template`
+对于第1步，文件`$GOPATH/src/istio.io/istio/mixer/template/inventory.yaml`表示内置了12个template，分别是`apikey`, `authorization`, `checknothing`, `edge`, `listentry`, `logentry`, `metric`, `quota`, `reportnothing`, `tracespan`, `servicecontrolreport`, `kubernetesenv/template`
 
 在`$GOPATH/src/istio.io/istio/mixer/template`很多文件都是通过`tools/mixgen`、`tools/codegen`等命令生成的，它是adapter各个后端实例对接的抽象API接口，每一个adapter包括了Handler interface、Template后的Instance数据模型以及HandlerBuilder
 
